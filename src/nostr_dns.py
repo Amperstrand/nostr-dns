@@ -7,9 +7,12 @@ import platform
 import subprocess
 import asyncio
 import logging
+from dnslib import DNSHeader, RR, A, DNSRecord, DNSQuestion, QTYPE
+from dnslib.server import DNSServer, DNSLogger
+from nostr_dns_lib import fetch_ip, get_ssl_certificate, fetch_cert
 
 UPSTREAM_DNS = ('8.8.8.8', 53)  # Google DNS, change as needed
-LOCAL_IP = '127.0.0.1'
+LOCAL_IP = '127.0.0.1'  # Default IP address for proof of concept
 
 # Detect macOS and set port
 IS_MAC = platform.system() == 'Darwin'
@@ -73,7 +76,6 @@ class DNSHandler(socketserver.BaseRequestHandler):
         if domain and domain.endswith('.nostr.'):
             npub = domain[:-7]  # strip .nostr.
             try:
-                from nostr_dns_lib import fetch_ip
                 ip = asyncio.run(fetch_ip(npub))
             except TypeError as e:
                 logger.warning(f"No valid npub or no IP event found for {npub}: {e}")
@@ -87,6 +89,36 @@ class DNSHandler(socketserver.BaseRequestHandler):
             else:
                 logger.info(f"Resolved {domain} to {ip} via NOSTR event")
                 response = self.build_response(data, ip)
+
+                # --- Certificate Verification Logic ---
+                try:
+                    # 1. Fetch the certificate published on Nostr
+                    published_cert_pem = asyncio.run(fetch_cert(npub))
+                    if not published_cert_pem:
+                        logger.warning(f"No certificate found on Nostr for {npub}")
+                    else:
+                        logger.info(f"Found certificate on Nostr for {npub}")
+
+                        # 2. Fetch the certificate from the server
+                        served_cert_pem = get_ssl_certificate(domain, ip)
+
+                        if not served_cert_pem:
+                            logger.warning(f"Could not fetch SSL certificate from server at {ip}")
+                        else:
+                            # 3. Compare the certificates
+                            if published_cert_pem.strip() == served_cert_pem.strip():
+                                logger.info(f"SUCCESS: Server certificate at {ip} matches the one published on Nostr for {npub}.")
+                                # 4. Save the verified certificate for curl
+                                cert_path = f"/tmp/nostr-dns-{npub}.pem"
+                                with open(cert_path, "w") as f:
+                                    f.write(served_cert_pem)
+                                logger.info(f"Saved verified certificate to {cert_path}")
+                            else:
+                                logger.error(f"ERROR: Server certificate at {ip} does NOT match the one published on Nostr for {npub}.")
+                except Exception as e:
+                    logger.error(f"An error occurred during certificate verification for {npub}: {e}")
+                # --- End Certificate Verification ---
+
             sock.sendto(response, self.client_address)
         else:
             logger.info(f"Proxying DNS query for {domain} to upstream DNS")

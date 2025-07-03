@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Nostr DNS & Self-Sovereign CA</title>
+
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/black.min.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/plugin/highlight/monokai.min.css">
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>Nostr DNS & Self-Sovereign CA</h2>
+					<p>A Proof-of-Concept</p>
+					<p><small>A decentralized, censorship-resistant system for domain names and trust.</small></p>
+				</section>
+
+				<section>
+					<h3>The Problem with DNS & CAs Today</h3>
+					<ul>
+						<li class="fragment"><b>Centralized Control:</b> DNS is managed by a few organizations (ICANN, Verisign).</li>
+						<li class="fragment"><b>Censorship:</b> Governments or corporations can seize or block domain names.</li>
+						<li class="fragment"><b>Single Points of Failure:</b> Certificate Authorities (CAs) are gatekeepers of trust. If a CA is compromised, security is broken.</li>
+						<li class="fragment"><b>Lack of Self-Sovereignty:</b> You rent your domain name; you don't own it.</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>What is Nostr?</h3>
+					<p class="fragment">"Notes and Other Stuff Transmitted by Relays"</p>
+					<ul>
+						<li class="fragment">A simple, open protocol for creating a censorship-resistant global social network.</li>
+						<li class="fragment">Users are identified by a public key (`npub`).</li>
+						<li class="fragment">Users sign data "events" with their private key (`nsec`).</li>
+						<li class="fragment">Data is distributed through simple, interchangeable relays.</li>
+						<li class="fragment">It's not just for social media; it's a generic protocol for decentralized data publication.</li>
+					</ul>
+				</section>
+
+				<section>
+					<section>
+						<h3>The Solution: Using Nostr for DNS & Trust</h3>
+						<p>We can use Nostr events to map a sovereign identity (`npub`) to a server and its security certificate.</p>
+						<p class="fragment">This creates a system where you can securely connect to a service hosted by an `npub` without relying on any central authority.</p>
+					</section>
+					<section>
+						<h4>How It Works: The Core Events</h4>
+						<p>Two simple Nostr event "kinds" are used:</p>
+						<ul>
+							<li><pre><code data-trim>Kind 30000: The "DNS A Record"</code></pre>
+								<p><small>Content: `{"ip": "123.45.67.89"}`. Maps an `npub` to an IP address.</small></p>
+							</li>
+							<li class="fragment"><pre><code data-trim>Kind 30001: The "Certificate Record"</code></pre>
+								<p><small>Content: The server's self-signed SSL certificate (PEM format).</small></p>
+							</li>
+						</ul>
+						<p class="fragment">The owner of the `npub` signs these events, creating an unforgeable link between their identity, their server's location, and its certificate.</p>
+					</section>
+				</section>
+
+				<section>
+					<h3>Current Status: What's Working?</h3>
+					<p>This is a fully functional, end-to-end proof-of-concept.</p>
+					<ul>
+						<li class="fragment"><b>Core Library (`nostr_dns_lib.py`):</b> Publishes and fetches IP and Certificate events from Nostr.</li>
+						<li class="fragment"><b>Server Utilities (`update_ip_address.py`, `https_demo_server.py`):</b> Announce a server's IP and publish its self-signed certificate.</li>
+						<li class="fragment"><b>DNS Server (`nostr_dns.py`):</b> A real DNS server that resolves `&lt;npub&gt;.nostr` domains.</li>
+						<li class="fragment"><b>mDNS Server (`nostr_mdns.py`):</b> Resolves `&lt;npub&gt;.local` for easy local testing.</li>
+						<li class="fragment"><b>End-to-End Verification:</b> The DNS server fetches the "official" cert from Nostr and verifies it matches the one presented by the server, creating a trusted connection.</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Live Demo Outline</h3>
+					<ol>
+						<li><b>Server Setup:</b> Run `https_demo_server.py` to start a web server and publish its certificate to Nostr.</li>
+						<li><b>IP Publication:</b> Run `update_ip_address.py` to publish the server's IP address.</li>
+						<li><b>DNS Resolution:</b> Start `nostr_dns.py`. Use `dig` or `nslookup` to resolve `&lt;npub&gt;.nostr`.</li>
+						<li><b>Trusted Connection:</b> The DNS server verifies and caches the certificate. Use `curl --cacert` to make a secure, trusted HTTPS request to the server.</li>
+					</ol>
+				</section>
+
+				<section>
+					<section>
+						<h3>Future Research & Challenges</h3>
+						<p>The biggest hurdle is making this seamless for the average user.</p>
+					</section>
+					<section>
+						<h4>The #1 Challenge: Browser Integration</h4>
+						<p>How do we get browsers to trust these certificates without scary warnings?</p>
+						<ul>
+							<li class="fragment"><b>Browser Extension / Companion App:</b> The most feasible path. An extension could handle `.nostr` resolution and certificate validation.</li>
+							<li class="fragment"><b>Hybrid Subdomain Model:</b> A service offers `&lt;npub&gt;.some-domain.com` with a standard CA-signed cert that also includes `&lt;npub&gt;.nostr` as a name, providing a bridge for legacy and new clients.</li>
+							<li class="fragment"><b>Local Proxy:</b> A background app that proxies traffic, handling all the Nostr logic transparently.</li>
+						</ul>
+					</section>
+					<section>
+						<h4>Other Areas of Research</h4>
+						<ul>
+							<li><b>Decentralized Web-of-Trust:</b> Instead of one CA, what if users could choose multiple "trust anchors"?</li>
+							<li><b>Subdomain Support:</b> Standardizing an event format for `www.&lt;npub&gt;.nostr`, `api.&lt;npub&gt;.nostr`, etc.</li>
+							<li><b>Security & Revocation:</b> How do you revoke a compromised certificate in a decentralized system?</li>
+							<li><b>Alternative Trust Models:</b> Exploring the use of `secp256k1` certificates (currently impractical due to lack of client support).</li>
+						</ul>
+					</section>
+				</section>
+
+				<section>
+					<h2>Thank You</h2>
+					<h3>Questions?</h3>
+				</section>
+
+			</div>
+		</div>
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/plugin/notes/notes.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/plugin/markdown/markdown.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/plugin/highlight/highlight.min.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

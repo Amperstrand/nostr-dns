@@ -2,7 +2,7 @@ import sys
 import asyncio
 from nostr_dns_lib import publish_ip, get_own_npub
 
-DEFAULT_IP = "216.128.178.176"
+DEFAULT_IP = "127.0.0.1"
 NSEC_FILE = "/tmp/nsec.key"
 RELAY = "wss://relay.snort.social"
 

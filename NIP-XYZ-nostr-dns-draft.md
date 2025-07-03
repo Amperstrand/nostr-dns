@@ -17,7 +17,7 @@ Traditional DNS and CA systems are centralized, creating single points of failur
   - Content: `{ "ip": "<IPv4/IPv6 address>" }`
   - Published by the NOSTR identity (npub) controlling the service/host
 - **Kind 30001** (optional): Certificate Announcement
-  - Content: `{ "cert_pem": "<PEM-encoded certificate>" }`
+  - Content: The raw PEM-encoded certificate string.
   - Used to publish a self-signed certificate for the service
 
 ## Hostname Resolution
@@ -45,7 +45,7 @@ Traditional DNS and CA systems are centralized, creating single points of failur
 {
   "kind": 30001,
   "pubkey": "<hex of npub>",
-  "content": "{\"cert_pem\":\"-----BEGIN CERTIFICATE-----...\"}",
+  "content": "-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----",
   "created_at": 1680000001,
   "tags": []
 }
